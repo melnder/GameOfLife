@@ -1,14 +1,14 @@
 // Game configuration
 const config = {
-    gridSizeX: 160, // Number of cells in X dimension (width)
-    gridSizeY: 90,  // Number of cells in Y dimension (height)
-    cellSize: 0.2, // Size of each cell
-    spacing: 0.01, // Spacing between cells
+    spacing: 1, // Spacing between cells in pixels
     aliveColor: 0xffffff, // White for alive cells
     deadColor: 0x222222, // Dark gray for dead cells
     updateInterval: 100, // Milliseconds between updates
-    zoomLevel: 10 // Controls the visual size of cells (lower = bigger cells)
+    isWidescreen: true, // 16:9 ratio (true) or 9:16 ratio (false)
+    cellSizeFactor: 5, // 1-9: From small cells to large cells
+    maxGridSize: 100 // Safety limit to prevent browser crashes
 };
+
 
 // Game state
 let scene, camera, renderer;
@@ -21,23 +21,29 @@ let settingsUpdateTimeout = null; // For debouncing settings updates
 let isEraseMode = false; // False = draw mode (add cells), True = erase mode (remove cells)
 
 // Calculate total grid width and height
-let gridWidth = config.gridSizeX * (config.cellSize + config.spacing) - config.spacing;
-let gridHeight = config.gridSizeY * (config.cellSize + config.spacing) - config.spacing;
+let gridWidth, gridHeight, gridSizeX, gridSizeY, cellSize;
+// Create reusable objects for ray casting to avoid garbage collection
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+const intersection = new THREE.Vector3();
 
 // Initialize Three.js scene
 function init() {
-    // Create scene
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x111111);
-
-    // Create camera with fixed zoom based on cell size rather than grid size
-    setupCamera();
 
     // Create renderer
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.getElementById('gameCanvas').appendChild(renderer.domElement);
 
+    // Calculate initial grid dimensions
+    calculateGridDimensions();
+    
+    // Create camera
+    setupCamera();
+    
     // Create grid of cells
     createGrid();
 
@@ -57,21 +63,36 @@ function init() {
     animate();
 }
 
-// Setup camera with consistent zoom level
+// Calculate grid dimensions based on aspect ratio and cell size
+function calculateGridDimensions() {
+    // Calculate the grid dimensions in pixels
+    gridWidth = window.innerWidth;
+    gridHeight = window.innerHeight;
+
+    if(!config.isWidescreen) {
+        gridWidth = gridHeight * (9/16);
+    }
+
+    cellSize =  Math.min(gridWidth, gridHeight) * ((config.cellSizeFactor + 1) / 100);
+    console.log("Cell size: ", cellSize);
+    // Calculate grid size in cells (with a safety limit)
+    gridSizeX = Math.min(Math.floor(gridWidth / cellSize), config.maxGridSize);
+    gridSizeY = Math.min(Math.floor(gridHeight / cellSize), config.maxGridSize);
+}
+
+// Setup camera
 function setupCamera() {
-    const aspect = window.innerWidth / window.innerHeight;
-    // Use fixed viewSize based on cell size instead of grid dimensions
-    const viewSize = config.zoomLevel;
-    
+    // Simple camera setup for 2D rendering
     camera = new THREE.OrthographicCamera(
-        -viewSize * aspect / 2, 
-        viewSize * aspect / 2,
-        viewSize / 2, 
-        -viewSize / 2,
-        0.1, 
+        window.innerWidth / -2,
+        window.innerWidth / 2,
+        window.innerHeight / 2,
+        window.innerHeight / -2,
+        0.1,
         1000
     );
-    camera.position.z = 5;
+    camera.position.z = 100;
+    camera.lookAt(0, 0, 0);
 }
 
 // Setup the settings panel and event listeners
@@ -79,7 +100,6 @@ function setupSettingsPanel() {
     // Settings toggle
     const settingsToggle = document.getElementById('settingsToggle');
     const settingsPanel = document.getElementById('settingsPanel');
-    const settingsContainer = document.getElementById('settingsContainer');
     
     settingsToggle.addEventListener('click', () => {
         settingsPanel.classList.toggle('hidden');
@@ -100,32 +120,74 @@ function setupSettingsPanel() {
         toggleText.textContent = isEraseMode ? 'Erase' : 'Draw';
     });
     
-    // Set up slider value displays
-    const sliders = ['gridSizeX', 'gridSizeY', 'cellSize', 'updateInterval'];
-    sliders.forEach(sliderId => {
-        const slider = document.getElementById(sliderId);
-        const valueDisplay = document.getElementById(`${sliderId}Value`);
+    // Set up aspect ratio toggle
+    const aspectRatioToggle = document.getElementById('aspectRatioToggle');
+    aspectRatioToggle.addEventListener('change', function() {
+        config.isWidescreen = !this.checked;
         
-        // Initial value display
-        valueDisplay.textContent = slider.value;
+        // Update the label text
+        const toggleText = this.nextElementSibling.nextElementSibling;
+        toggleText.textContent = config.isWidescreen ? '16:9' : '9:16';
+        calculateGridDimensions();
+        recreateGrid();
+    });
+    
+    // Set up grid size preset slider
+    const gridSizePresetSlider = document.getElementById('gridSizePreset');
+    const gridSizePresetValue = document.getElementById('gridSizePresetValue');
+    
+    // Initial value display
+    gridSizePresetValue.textContent = gridSizePresetSlider.value;
+    
+    // Update on change
+    gridSizePresetSlider.addEventListener('input', function() {
+        const size = parseInt(this.value);
+        config.cellSizeFactor = size;
+        gridSizePresetValue.textContent = size;
         
-        // Update value display on slider change
-        slider.addEventListener('input', function() {
-            valueDisplay.textContent = this.value;
+        // Debounce updates to avoid performance issues
+        clearTimeout(settingsUpdateTimeout);
+        settingsUpdateTimeout = setTimeout(() => {
+            calculateGridDimensions();
+            recreateGrid();
+        }, 100);
+    });
+    
+    // Set up update interval slider
+    const updateIntervalSlider = document.getElementById('updateInterval');
+    const updateIntervalValue = document.getElementById('updateIntervalValue');
+    
+    // Initial value display
+    updateIntervalValue.textContent = updateIntervalSlider.value;
+    
+    // Update on change
+    updateIntervalSlider.addEventListener('input', function() {
+        updateIntervalValue.textContent = this.value;
+        
+        // Debounce updates to avoid performance issues
+        clearTimeout(settingsUpdateTimeout);
+        settingsUpdateTimeout = setTimeout(() => {
+            config.updateInterval = parseInt(this.value);
             
-            // Debounce updates to avoid performance issues
-            clearTimeout(settingsUpdateTimeout);
-            settingsUpdateTimeout = setTimeout(() => {
-                updateSettingsFromPanel();
-            }, 100);
-        });
+            // Update interval if simulation is running
+            if (isRunning) {
+                clearInterval(intervalId);
+                intervalId = setInterval(updateGrid, config.updateInterval);
+            }
+        }, 100);
     });
     
     // Setup color inputs
     const colorInputs = document.querySelectorAll('#settingsPanel input[type="color"]');
     colorInputs.forEach(input => {
         input.addEventListener('input', function() {
-            updateSettingsFromPanel(['aliveColor', 'deadColor']);
+            if (this.id === 'aliveColor') {
+                config.aliveColor = parseInt(this.value.substring(1), 16);
+            } else if (this.id === 'deadColor') {
+                config.deadColor = parseInt(this.value.substring(1), 16);
+            }
+            
+            updateCellColors();
         });
     });
     
@@ -135,89 +197,23 @@ function setupSettingsPanel() {
 
 // Initialize settings panel with current values
 function initSettingsPanel() {
-    document.getElementById('gridSizeX').value = config.gridSizeX;
-    document.getElementById('gridSizeXValue').textContent = config.gridSizeX;
+    // Aspect ratio toggle
+    const aspectRatioToggle = document.getElementById('aspectRatioToggle');
+    aspectRatioToggle.checked = !config.isWidescreen;
+    const toggleText = aspectRatioToggle.nextElementSibling.nextElementSibling;
+    toggleText.textContent = config.isWidescreen ? '16:9' : '9:16';
     
-    document.getElementById('gridSizeY').value = config.gridSizeY;
-    document.getElementById('gridSizeYValue').textContent = config.gridSizeY;
+    // Grid size preset
+    document.getElementById('gridSizePreset').value = config.gridSizePreset;
+    document.getElementById('gridSizePresetValue').textContent = config.gridSizePreset;
     
-    document.getElementById('cellSize').value = config.cellSize;
-    document.getElementById('cellSizeValue').textContent = config.cellSize;
-    
+    // Update interval
     document.getElementById('updateInterval').value = config.updateInterval;
     document.getElementById('updateIntervalValue').textContent = config.updateInterval;
     
+    // Colors
     document.getElementById('aliveColor').value = '#' + config.aliveColor.toString(16).padStart(6, '0');
     document.getElementById('deadColor').value = '#' + config.deadColor.toString(16).padStart(6, '0');
-}
-
-// Update settings from panel inputs
-function updateSettingsFromPanel(onlyProperties = null) {
-    // Store previous settings to check if we need to recreate the grid
-    const prevSettings = {
-        gridSizeX: config.gridSizeX,
-        gridSizeY: config.gridSizeY,
-        cellSize: config.cellSize,
-        spacing: config.spacing,
-        updateInterval: config.updateInterval
-    };
-    
-    // Only update the specified properties or all properties
-    const updateAll = !onlyProperties;
-    
-    if (updateAll || onlyProperties && onlyProperties.includes('gridSizeX')) {
-        config.gridSizeX = parseInt(document.getElementById('gridSizeX').value);
-    }
-    
-    if (updateAll || onlyProperties && onlyProperties.includes('gridSizeY')) {
-        config.gridSizeY = parseInt(document.getElementById('gridSizeY').value);
-    }
-    
-    if (updateAll || onlyProperties && onlyProperties.includes('cellSize')) {
-        config.cellSize = parseFloat(document.getElementById('cellSize').value);
-        // Adjust zoom level when cell size changes to keep visual size consistent
-        config.zoomLevel = 2 / config.cellSize; // This creates an inverse relationship
-    }
-    
-    if (updateAll || onlyProperties && onlyProperties.includes('updateInterval')) {
-        config.updateInterval = parseInt(document.getElementById('updateInterval').value);
-        
-        // Update interval if simulation is running
-        if (isRunning) {
-            clearInterval(intervalId);
-            intervalId = setInterval(updateGrid, config.updateInterval);
-        }
-    }
-    
-    // Update colors
-    if (updateAll || onlyProperties && onlyProperties.includes('aliveColor')) {
-        const aliveColorHex = document.getElementById('aliveColor').value;
-        config.aliveColor = parseInt(aliveColorHex.substring(1), 16);
-    }
-    
-    if (updateAll || onlyProperties && onlyProperties.includes('deadColor')) {
-        const deadColorHex = document.getElementById('deadColor').value;
-        config.deadColor = parseInt(deadColorHex.substring(1), 16);
-    }
-    
-    // Always recalculate grid dimensions
-    gridWidth = config.gridSizeX * (config.cellSize + config.spacing) - config.spacing;
-    gridHeight = config.gridSizeY * (config.cellSize + config.spacing) - config.spacing;
-    
-    // Check if only colors need to be updated
-    const needsRecreation = (
-        prevSettings.gridSizeX !== config.gridSizeX ||
-        prevSettings.gridSizeY !== config.gridSizeY ||
-        prevSettings.cellSize !== config.cellSize
-    );
-    
-    if (needsRecreation) {
-        // Full grid recreation needed
-        recreateGrid();
-    } else if ((onlyProperties && (onlyProperties.includes('aliveColor') || onlyProperties.includes('deadColor')))) {
-        // Just update colors
-        updateCellColors();
-    }
 }
 
 // Update just the colors of all cells
@@ -232,40 +228,50 @@ function updateCellColors() {
 
 // Create the grid of cells
 function createGrid() {
-    const geometry = new THREE.BoxGeometry(config.cellSize, config.cellSize, config.cellSize);
+    // Common geometry for all cells - use BoxGeometry for better visibility
+    const geometry = new THREE.BoxGeometry(cellSize - config.spacing, cellSize - config.spacing, 1);
     const deadMaterial = new THREE.MeshBasicMaterial({ color: config.deadColor });
-    const aliveMaterial = new THREE.MeshBasicMaterial({ color: config.aliveColor });
-
+    
+    // Calculate total grid size
+    const totalGridWidth = cellSize * gridSizeX;
+    const totalGridHeight = cellSize * gridSizeY;
+    
     // Calculate starting position to center the grid
-    const startX = -gridWidth / 2 + config.cellSize / 2;
-    const startY = gridHeight / 2 - config.cellSize / 2;
+    const startX = -totalGridWidth / 2 + cellSize / 2;
+    const startY = totalGridHeight / 2 - cellSize / 2;
 
     // Create a 2D array for the grid
-    grid = new Array(config.gridSizeY);
-    for (let i = 0; i < config.gridSizeY; i++) {
-        grid[i] = new Array(config.gridSizeX);
+    grid = new Array(gridSizeY);
+    for (let i = 0; i < gridSizeY; i++) {
+        grid[i] = new Array(gridSizeX);
         
-        for (let j = 0; j < config.gridSizeX; j++) {
+        for (let j = 0; j < gridSizeX; j++) {
             const cell = {
                 state: 0, // 0 = dead, 1 = alive
                 mesh: new THREE.Mesh(geometry, deadMaterial.clone()),
                 nextState: 0 // For calculating the next generation
             };
 
-            const x = startX + j * (config.cellSize + config.spacing);
-            const y = startY - i * (config.cellSize + config.spacing);
+            const x = startX + j * cellSize;
+            const y = startY - i * cellSize;
             
             cell.mesh.position.set(x, y, 0);
             scene.add(cell.mesh);
             grid[i][j] = cell;
+            
+            // Add some initial cells for testing (making a glider pattern)
+            if ((i === 1 && j === 2) || (i === 2 && j === 3) || 
+                (i === 3 && j === 1) || (i === 3 && j === 2) || (i === 3 && j === 3)) {
+                setCell(i, j, 1);
+            }
         }
     }
 }
 
 // Reset the grid to all dead cells
 function resetGrid() {
-    for (let i = 0; i < config.gridSizeY; i++) {
-        for (let j = 0; j < config.gridSizeX; j++) {
+    for (let i = 0; i < gridSizeY; i++) {
+        for (let j = 0; j < gridSizeX; j++) {
             setCell(i, j, 0);
         }
     }
@@ -273,14 +279,11 @@ function resetGrid() {
     if (isRunning) {
         toggleSimulation(); // Stop the simulation
     }
-    
-    // Reset last toggled cell
-    lastCellToggled = { row: -1, col: -1 };
 }
 
 // Toggle cell state (0 = dead, 1 = alive)
 function setCell(row, col, state) {
-    if (row < 0 || row >= config.gridSizeY || col < 0 || col >= config.gridSizeX) {
+    if (row < 0 || row >= gridSizeY || col < 0 || col >= gridSizeX) {
         return;
     }
     
@@ -291,7 +294,7 @@ function setCell(row, col, state) {
 
 // Toggle the cell state based on current draw/erase mode
 function toggleCell(row, col) {
-    if (row < 0 || row >= config.gridSizeY || col < 0 || col >= config.gridSizeX) {
+    if (row < 0 || row >= gridSizeY || col < 0 || col >= gridSizeX) {
         return;
     }
     
@@ -333,8 +336,8 @@ function toggleSimulation() {
 // Update the grid based on Conway's Game of Life rules
 function updateGrid() {
     // Calculate next state for each cell
-    for (let i = 0; i < config.gridSizeY; i++) {
-        for (let j = 0; j < config.gridSizeX; j++) {
+    for (let i = 0; i < gridSizeY; i++) {
+        for (let j = 0; j < gridSizeX; j++) {
             const liveNeighbors = countLiveNeighbors(i, j);
             const cell = grid[i][j];
             
@@ -349,8 +352,8 @@ function updateGrid() {
     }
     
     // Apply the next state
-    for (let i = 0; i < config.gridSizeY; i++) {
-        for (let j = 0; j < config.gridSizeX; j++) {
+    for (let i = 0; i < gridSizeY; i++) {
+        for (let j = 0; j < gridSizeX; j++) {
             const cell = grid[i][j];
             if (cell.state !== cell.nextState) {
                 setCell(i, j, cell.nextState);
@@ -373,7 +376,7 @@ function countLiveNeighbors(row, col) {
             const c = col + j;
             
             // Check bounds
-            if (r >= 0 && r < config.gridSizeY && c >= 0 && c < config.gridSizeX) {
+            if (r >= 0 && r < gridSizeY && c >= 0 && c < gridSizeX) {
                 count += grid[r][c].state;
             }
         }
@@ -394,18 +397,21 @@ function recreateGrid() {
     for (let i = 0; i < grid.length; i++) {
         for (let j = 0; j < grid[i].length; j++) {
             scene.remove(grid[i][j].mesh);
+            // Dispose of materials and geometries to prevent memory leaks
+            if (grid[i][j].mesh.material) {
+                grid[i][j].mesh.material.dispose();
+            }
+            if (grid[i][j].mesh.geometry) {
+                grid[i][j].mesh.geometry.dispose();
+            }
         }
     }
     
-    // Update camera with consistent zoom
-    const aspect = window.innerWidth / window.innerHeight;
-    const viewSize = config.zoomLevel;
+    // Recalculate grid dimensions
+    calculateGridDimensions();
     
-    camera.left = -viewSize * aspect / 2;
-    camera.right = viewSize * aspect / 2;
-    camera.top = viewSize / 2;
-    camera.bottom = -viewSize / 2;
-    camera.updateProjectionMatrix();
+    // Update camera
+    setupCamera();
     
     // Recreate grid
     createGrid();
@@ -424,16 +430,11 @@ function animate() {
 
 // Handle window resize
 function onWindowResize() {
-    const aspect = window.innerWidth / window.innerHeight;
-    const viewSize = config.zoomLevel;
-    
-    camera.left = -viewSize * aspect / 2;
-    camera.right = viewSize * aspect / 2;
-    camera.top = viewSize / 2;
-    camera.bottom = -viewSize / 2;
-    
-    camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
+    
+    // Recalculate grid dimensions and recreate grid
+    calculateGridDimensions();
+    recreateGrid();
 }
 
 // Handle mouse events for drawing cells
@@ -463,34 +464,29 @@ function handleMouseInteraction(event) {
     const mouseX = event.clientX - rect.left;
     const mouseY = event.clientY - rect.top;
     
-    // Create a raycaster for picking
-    const raycaster = new THREE.Raycaster();
-    const mouse = new THREE.Vector2(
-        (mouseX / rect.width) * 2 - 1,
-        -(mouseY / rect.height) * 2 + 1
-    );
+    mouse.x = (mouseX / rect.width) * 2 - 1;
+    mouse.y = -(mouseY / rect.height) * 2 + 1;
     
     raycaster.setFromCamera(mouse, camera);
     
-    // Find intersected objects - create a dummy plane for intersection
-    const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
-    const intersection = new THREE.Vector3();
-    raycaster.ray.intersectPlane(plane, intersection);
-    
-    // Calculate grid position from world position
-    const halfGridWidth = gridWidth / 2;
-    const halfGridHeight = gridHeight / 2;
-    
-    const gridX = Math.floor((intersection.x + halfGridWidth) / (config.cellSize + config.spacing));
-    const gridY = Math.floor((halfGridHeight - intersection.y) / (config.cellSize + config.spacing));
-    
-    // Toggle cell if within bounds and not the same as last toggled cell
-    if (gridX >= 0 && gridX < config.gridSizeX && gridY >= 0 && gridY < config.gridSizeY) {
-        // Check if this is a new cell to toggle
-        if (gridY !== lastCellToggled.row || gridX !== lastCellToggled.col) {
-            toggleCell(gridY, gridX);
-            lastCellToggled.row = gridY;
-            lastCellToggled.col = gridX;
+    // Find intersected objects with the plane
+    if (raycaster.ray.intersectPlane(plane, intersection)) {
+        // Calculate the total grid size
+        const totalGridWidth = cellSize * gridSizeX;
+        const totalGridHeight = cellSize * gridSizeY;
+        
+        // Convert world position to grid coordinates
+        const gridX = Math.floor((intersection.x + totalGridWidth / 2) / cellSize);
+        const gridY = Math.floor((totalGridHeight / 2 - intersection.y) / cellSize);
+        
+        // Toggle cell if within bounds and not the same as last toggled cell
+        if (gridX >= 0 && gridX < gridSizeX && gridY >= 0 && gridY < gridSizeY) {
+            // Check if this is a new cell to toggle
+            if (gridY !== lastCellToggled.row || gridX !== lastCellToggled.col) {
+                toggleCell(gridY, gridX);
+                lastCellToggled.row = gridY;
+                lastCellToggled.col = gridX;
+            }
         }
     }
 }
