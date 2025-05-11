@@ -1,0 +1,330 @@
+body {
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+    overflow: hidden;
+    background-color: #222;
+    color: white;
+}
+
+#container {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+#gameCanvas {
+    flex-grow: 1;
+    width: 100%;
+}
+
+#controls {
+    padding: 10px;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    background-color: #333;
+    position: absolute;
+    bottom: 20px;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    transition: opacity 0.3s ease;
+}
+
+#controls.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+#settingsContainer {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    z-index: 100;
+    transition: opacity 0.3s ease;
+}
+
+#settingsToggle {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background-color: #222;
+    color: rgb(114, 113, 113);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+    transition: transform 0.3s, background-color 0.3s, opacity 0.3s;
+}
+
+#settingsToggle:hover {
+    background-color: #fafafa;
+}
+
+#settingsToggle.active {
+    transform: rotate(45deg);
+    background-color: #fafafa;
+}
+
+#settingsContainer.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+#settingsPanel {
+    position: absolute;
+    top: 55px;
+    right: 0;
+    width: 300px;
+    background-color: #333;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+    transition: transform 0.3s, opacity 0.3s;
+    transform-origin: top right;
+    z-index: 200;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+#settingsPanel.hidden {
+    transform: scale(0.95);
+    opacity: 0;
+    pointer-events: none;
+}
+
+#settingsPanel h3 {
+    margin-top: 0;
+    text-align: center;
+    margin-bottom: 20px;
+    color: #222;
+}
+
+.settingsGrid {
+    display: grid;
+    grid-template-columns: repeat(1, 1fr);
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.settingItem {
+    display: flex;
+    flex-direction: column;
+}
+
+.sliderLabel {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+}
+
+.settingItem label {
+    font-size: 14px;
+    color: #ddd;
+}
+
+.settingItem span {
+    font-size: 14px;
+    color: #fafafa;
+    font-weight: bold;
+}
+
+.settingItem input[type="range"] {
+    width: 100%;
+    height: 6px;
+    background: #444;
+    border-radius: 5px;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+    margin: 10px 0;
+}
+
+.settingItem input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    background: #fafafa;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.settingItem input[type="range"]::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    background: #fafafa;
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+}
+
+.settingItem input[type="color"] {
+    height: 30px;
+    padding: 2px;
+    background-color: #444;
+    border: 1px solid #555;
+    border-radius: 4px;
+}
+
+.colorPickers {
+    flex-direction: row !important;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.colorPicker {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+
+.colorPicker label {
+    margin-bottom: 5px;
+}
+
+.drawMode {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.toggle-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.toggle {
+    height: 0;
+    width: 0;
+    visibility: hidden;
+    position: absolute;
+}
+
+.toggle-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    width: 50px;
+    height: 25px;
+    background: #444;
+    border-radius: 25px;
+    position: relative;
+    transition: background-color 0.2s;
+}
+
+.toggle-label .toggle-inner {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 21px;
+    height: 21px;
+    border-radius: 50%;
+    transition: 0.3s;
+    background: #fafafa;
+}
+
+.toggle:checked + .toggle-label .toggle-inner {
+    left: calc(100% - 2px);
+    transform: translateX(-100%);
+    background: #f44336;
+}
+
+.toggle-text {
+    font-size: 14px;
+    font-weight: bold;
+    transition: 0.3s;
+}
+
+.toggle:checked ~ .toggle-text {
+    color: #f44336;
+}
+
+.toggle:not(:checked) ~ .toggle-text {
+    color: #fafafa;
+}
+
+.controlButtons {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.controlButtons button {
+    flex: 1;
+    padding: 10px;
+}
+
+button {
+    padding: 8px 16px;
+    font-size: 16px;
+    cursor: pointer;
+    background-color: #fafafa;
+    color: #222;
+    border: none;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+button:hover {
+    background-color: #fafafa;
+}
+
+#resetBtn {
+    background-color: #f44336;
+}
+
+#resetBtn:hover {
+    background-color: #d32f2f;
+}
+
+#settingsBtn {
+    background-color: #222;
+}
+
+#settingsBtn:hover {
+    background-color: #fafafa;
+}
+
+.hidden {
+    display: none;
+}
+
+.watermark {
+    text-align: center;
+    font-size: 12px;
+    color: #666;
+    margin-top: 15px;
+    padding-top: 10px;
+    border-top: 1px solid #444;
+    font-style: italic;
+}
+
+.aspectRatio {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.tickmarks {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 2px;
+    padding: 0 2px;
+}
+
+.tickmarks span {
+    font-size: 10px;
+    color: #888;
+} 

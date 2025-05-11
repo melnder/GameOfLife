@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game of life</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <div id="container">
+        <div id="gameCanvas"></div>
+        <div id="settingsContainer">
+            <button id="settingsToggle"><i class="fas fa-cog"></i></button>
+            <div id="settingsPanel" class="hidden">
+                <div class="settingsGrid">
+                    <div class="settingItem drawMode">
+                        <label>Drawing Mode:</label>
+                        <div class="toggle-container">
+                            <input type="checkbox" id="drawModeToggle" class="toggle">
+                            <label for="drawModeToggle" class="toggle-label">
+                                <span class="toggle-inner"></span>
+                                <span class="toggle-switch"></span>
+                            </label>
+                            <span class="toggle-text">Draw</span>
+                        </div>
+                    </div>
+                    <div class="settingItem">
+                        <div class="sliderLabel">
+                            <label for="gridSizeX">Grid Width:</label>
+                            <span id="gridSizeXValue">160</span>
+                        </div>
+                        <input type="range" id="gridSizeX" min="10" max="300" value="160">
+                    </div>
+                    <div class="settingItem">
+                        <div class="sliderLabel">
+                            <label for="gridSizeY">Grid Height:</label>
+                            <span id="gridSizeYValue">90</span>
+                        </div>
+                        <input type="range" id="gridSizeY" min="10" max="300" value="90">
+                    </div>
+                    <div class="settingItem">
+                        <div class="sliderLabel">
+                            <label for="cellSize">Cell Size:</label>
+                            <span id="cellSizeValue">0.2</span>
+                        </div>
+                        <input type="range" id="cellSize" min="0.05" max="1" step="0.05" value="0.2">
+                    </div>
+                    <div class="settingItem">
+                        <div class="sliderLabel">
+                            <label for="updateInterval">Update Speed (ms):</label>
+                            <span id="updateIntervalValue">100</span>
+                        </div>
+                        <input type="range" id="updateInterval" min="50" max="500" step="10" value="100">
+                    </div>
+                    <div class="settingItem colorPickers">
+                        <div class="colorPicker">
+                            <label for="aliveColor">Alive color:</label>
+                            <input type="color" id="aliveColor" value="#ffffff">
+                        </div>
+                        <div class="colorPicker">
+                            <label for="deadColor">Dead color:</label>
+                            <input type="color" id="deadColor" value="#222222">
+                        </div>
+                    </div>
+                </div>
+                <div class="controlButtons">
+                    <button id="startBtn">Start</button>
+                    <button id="resetBtn">Reset</button>
+                </div>
+                <div class="watermark">
+                    @melnder
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html> 
