@@ -258,12 +258,6 @@ function createGrid() {
             cell.mesh.position.set(x, y, 0);
             scene.add(cell.mesh);
             grid[i][j] = cell;
-            
-            // Add some initial cells for testing (making a glider pattern)
-            if ((i === 1 && j === 2) || (i === 2 && j === 3) || 
-                (i === 3 && j === 1) || (i === 3 && j === 2) || (i === 3 && j === 3)) {
-                setCell(i, j, 1);
-            }
         }
     }
 }
